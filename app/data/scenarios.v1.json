@@ -1,0 +1,85 @@
+{
+  "version": "1.0.0",
+  "scenarios": [
+    {
+      "id": "database-saturation",
+      "title": "Database connection pool saturation",
+      "service": "checkout-api",
+      "symptom": "Checkout latency is above 2 seconds and database connections are exhausted.",
+      "ground_truth": {
+        "cause_id": "pool-capacity-regression",
+        "summary": "A deployment reduced the checkout connection-pool limit, exhausting available database connections.",
+        "core_sources": ["metrics", "sql"],
+        "runbook_id": "rb-db-pool",
+        "remediation": {"action": "rollback", "description": "Roll back checkout-api to the last healthy release and restore its connection-pool limit.", "risk": "Briefly returns checkout-api to the previous application version."}
+      },
+      "signals": {
+        "metrics": "db_pool_in_use=100%; checkout_p95_ms=2840; pool_waiters=47",
+        "traces": "checkout spans spend 2.4s waiting for a database connection",
+        "logs": "WARN checkout.pool acquisition timeout after 2000ms",
+        "deployments": "checkout-api v2.4.1 deployed 6 minutes before the alert; pool limit changed 40 -> 10",
+        "sql": "active_connections=50/50; idle_in_transaction=0; connection wait queue=47"
+      }
+    },
+    {
+      "id": "deployment-regression",
+      "title": "Deployment regression in checkout",
+      "service": "checkout-api",
+      "symptom": "Checkout errors increased immediately after the latest release.",
+      "ground_truth": {
+        "cause_id": "release-query-regression",
+        "summary": "Release v3.8.0 introduced an unindexed query that drives database CPU and checkout latency.",
+        "core_sources": ["deployments", "traces"],
+        "runbook_id": "rb-release-rollback",
+        "remediation": {"action": "rollback", "description": "Roll checkout-api back from v3.8.0 to the last healthy release v3.7.4.", "risk": "Reverts checkout-api application behavior to v3.7.4."}
+      },
+      "signals": {
+        "metrics": "db_cpu=98%; checkout_error_rate=18%; checkout_p95_ms=3210",
+        "traces": "checkout spans show query get_cart_items at 2.8s; query plan uses sequential scan",
+        "logs": "ERROR query timeout in get_cart_items; request_id=sim-req-380",
+        "deployments": "checkout-api v3.8.0 deployed 4 minutes before alert; previous healthy version v3.7.4",
+        "sql": "get_cart_items scans 1.8M rows; no index on cart_items.customer_id"
+      }
+    },
+    {
+      "id": "cache-outage",
+      "title": "Cache cluster unavailable",
+      "service": "catalog-api",
+      "symptom": "Catalog requests are slow and the primary database is receiving a sudden traffic spike.",
+      "ground_truth": {
+        "cause_id": "cache-cluster-outage",
+        "summary": "The catalog cache cluster became unavailable, sending cache misses through to the primary database.",
+        "core_sources": ["metrics", "logs"],
+        "runbook_id": "rb-cache-failover",
+        "remediation": {"action": "failover", "description": "Fail the catalog cache traffic over to the healthy replica and warm the hot-key set.", "risk": "Cache entries will rebuild gradually and database load may remain elevated briefly."}
+      },
+      "signals": {
+        "metrics": "cache_cluster_up=0; catalog_cache_hit_rate=3%; db_qps=4.2x baseline",
+        "traces": "catalog spans show cache connection refused followed by a slow database read",
+        "logs": "ERROR cache client connection refused by cache-primary-1",
+        "deployments": "no catalog-api or cache configuration deployment in the last 60 minutes",
+        "sql": "catalog read query volume is 4.2x baseline; query latency remains normal"
+      }
+    },
+    {
+      "id": "upstream-timeout",
+      "title": "Payments upstream timeout",
+      "service": "payments-gateway",
+      "symptom": "Payment requests are timing out while local service health remains normal.",
+      "ground_truth": {
+        "cause_id": "payments-provider-latency",
+        "summary": "The external payments provider is responding beyond the gateway timeout budget.",
+        "core_sources": ["traces", "logs"],
+        "runbook_id": "rb-upstream-circuit",
+        "remediation": {"action": "circuit_breaker", "description": "Enable the bounded payments-provider circuit breaker and queue retryable requests.", "risk": "Some payment requests will be deferred until the provider recovers."}
+      },
+      "signals": {
+        "metrics": "payments_timeout_rate=31%; gateway_cpu=22%; gateway_memory=41%",
+        "traces": "outbound call payments-provider /charge p99=12.4s; local handler p99=45ms",
+        "logs": "WARN upstream payments-provider exceeded 10s deadline; local dependencies healthy",
+        "deployments": "no payments-gateway deployment in the last 60 minutes",
+        "sql": "payments ledger query p95=18ms; connection pool utilization=24%"
+      }
+    }
+  ]
+}
