@@ -1,8 +1,8 @@
 import hashlib
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
 
 from app.models import Incident, IncidentStatus, TimelineEvent, now_utc
 

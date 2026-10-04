@@ -6,7 +6,6 @@ import re
 from collections import Counter
 from pathlib import Path
 
-
 DATA = Path(__file__).parent / "data" / "runbooks.v1.json"
 TOKEN = re.compile(r"[a-z0-9]+")
 

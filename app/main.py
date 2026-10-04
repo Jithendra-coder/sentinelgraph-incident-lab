@@ -14,6 +14,8 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
+from app.evaluation import run_evaluations
+from app.investigator import derive_root_cause
 from app.models import (
     ApprovalRequest,
     ChaosConfig,
@@ -32,8 +34,6 @@ from app.models import (
 )
 from app.retrieval import retrieve
 from app.store import Store
-from app.investigator import derive_root_cause
-from app.evaluation import run_evaluations
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -193,7 +193,7 @@ def create_app(store: Store | None = None) -> FastAPI:
             incident.completed_at = now_utc()
             db.save(incident)
             raise
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - unexpected worker failures must fail closed
             incident.status = IncidentStatus.blocked
             incident.quality = "insufficient"
             failed_call = trace(incident, "orchestrator", "failed", completed_at=now_utc(), error=f"Investigation aborted ({type(exc).__name__}).")

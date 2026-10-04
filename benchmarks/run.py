@@ -24,24 +24,26 @@ def run() -> dict:
     expected = {row["id"]: row["ground_truth"]["cause_id"] for row in dataset["scenarios"]}
     latencies = []
     correct = 0
-    with tempfile.TemporaryDirectory() as directory:
-        with TestClient(create_app(Store(Path(directory) / "benchmark.sqlite3"))) as client:
-            for scenario_id, cause_id in expected.items():
-                response = client.post("/api/incidents", json={"scenario_id": scenario_id})
-                response.raise_for_status()
-                incident_id = response.json()["id"]
-                deadline = time.monotonic() + 5
-                while time.monotonic() < deadline:
-                    result = client.get(f"/api/incidents/{incident_id}").json()
-                    if result["status"] != "investigating":
-                        break
-                    time.sleep(0.05)
-                else:
-                    raise RuntimeError(f"{scenario_id} failed to finish within 5 seconds")
-                if result["status"] != "awaiting_approval" or result["root_cause"]["cause_id"] != cause_id:
-                    raise RuntimeError(f"Unexpected investigation result for {scenario_id}")
-                correct += 1
-                latencies.append(result["metrics"]["latency_ms"])
+    with (
+        tempfile.TemporaryDirectory() as directory,
+        TestClient(create_app(Store(Path(directory) / "benchmark.sqlite3"))) as client,
+    ):
+        for scenario_id, cause_id in expected.items():
+            response = client.post("/api/incidents", json={"scenario_id": scenario_id})
+            response.raise_for_status()
+            incident_id = response.json()["id"]
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                result = client.get(f"/api/incidents/{incident_id}").json()
+                if result["status"] != "investigating":
+                    break
+                time.sleep(0.05)
+            else:
+                raise RuntimeError(f"{scenario_id} failed to finish within 5 seconds")
+            if result["status"] != "awaiting_approval" or result["root_cause"]["cause_id"] != cause_id:
+                raise RuntimeError(f"Unexpected investigation result for {scenario_id}")
+            correct += 1
+            latencies.append(result["metrics"]["latency_ms"])
     ordered = sorted(latencies)
     report = {
         "scenario_dataset_version": dataset["version"],
