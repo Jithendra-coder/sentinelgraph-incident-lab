@@ -1,0 +1,19 @@
+services:
+  sentinelgraph:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      SENTINELGRAPH_DB: /app/data/sentinelgraph.sqlite3
+      LOG_LEVEL: INFO
+    volumes:
+      - sentinelgraph-data:/app/data
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  sentinelgraph-data:
