@@ -1,0 +1,33 @@
+{
+  "scenario_dataset_version": "1.0.0",
+  "classification_label": "SIMULATED",
+  "latency_label": "MEASURED",
+  "sample_size": 4,
+  "environment": {
+    "python": "3.11.0",
+    "platform": "Windows-10-10.0.26300-SP0",
+    "storage": "temporary local SQLite"
+  },
+  "latency_ms": {
+    "p50": 1027.53,
+    "p95": 1037.77,
+    "runs": [
+      1037.77,
+      1022.39,
+      1029.09,
+      1025.97
+    ]
+  },
+  "scenario_replay_accuracy": {
+    "correct": 4,
+    "total": 4,
+    "rate": 1.0,
+    "label": "SIMULATED"
+  },
+  "model_api_spend_usd": {
+    "value": 0,
+    "label": "MEASURED",
+    "scope": "No model provider called; excludes local compute and hosting."
+  },
+  "limitations": "Four curated deterministic runs in one local process; not a load test or a production/model quality benchmark."
+}

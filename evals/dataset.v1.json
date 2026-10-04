@@ -1,0 +1,9 @@
+{
+  "version": "1.0.0",
+  "retrieval_queries": [
+    {"scenario_id": "database-saturation", "service": "checkout-api", "query": "checkout database connection pool saturation waiters exhausted", "expected_runbook_id": "rb-db-pool"},
+    {"scenario_id": "deployment-regression", "service": "checkout-api", "query": "checkout release regression slow query rollback deployment", "expected_runbook_id": "rb-release-rollback"},
+    {"scenario_id": "cache-outage", "service": "catalog-api", "query": "catalog cache unavailable failover low hit rate database", "expected_runbook_id": "rb-cache-failover"},
+    {"scenario_id": "upstream-timeout", "service": "payments-gateway", "query": "payments provider upstream timeout circuit breaker latency", "expected_runbook_id": "rb-upstream-circuit"}
+  ]
+}

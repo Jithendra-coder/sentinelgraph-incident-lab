@@ -1,0 +1,57 @@
+{
+  "label": "SIMULATED",
+  "scenario_dataset_version": "1.0.0",
+  "evaluation_dataset_version": "1.0.0",
+  "agent": {
+    "scenarios": 4,
+    "correct_tool_selection": 1.0,
+    "correct_tool_sequence": 1.0,
+    "no_unnecessary_tools": 1.0,
+    "bounded_stop_condition": 1.0,
+    "citations_supported": 1.0,
+    "unsupported_evidence": 0.0,
+    "correct_root_cause": 1.0
+  },
+  "retrieval": {
+    "queries": 4,
+    "recall_at_1": 1.0,
+    "recall_at_3": 1.0,
+    "mrr": 1.0,
+    "rows": [
+      {
+        "scenario_id": "database-saturation",
+        "expected_runbook_id": "rb-db-pool",
+        "retrieved_runbook_id": "rb-db-pool",
+        "expected_rank": 1,
+        "reciprocal_rank": 1.0
+      },
+      {
+        "scenario_id": "deployment-regression",
+        "expected_runbook_id": "rb-release-rollback",
+        "retrieved_runbook_id": "rb-release-rollback",
+        "expected_rank": 1,
+        "reciprocal_rank": 1.0
+      },
+      {
+        "scenario_id": "cache-outage",
+        "expected_runbook_id": "rb-cache-failover",
+        "retrieved_runbook_id": "rb-cache-failover",
+        "expected_rank": 1,
+        "reciprocal_rank": 1.0
+      },
+      {
+        "scenario_id": "upstream-timeout",
+        "expected_runbook_id": "rb-upstream-circuit",
+        "retrieved_runbook_id": "rb-upstream-circuit",
+        "expected_rank": 1,
+        "reciprocal_rank": 1.0
+      }
+    ]
+  },
+  "safety_checks": {
+    "missing_core_source_blocks_rca": 1,
+    "malicious_runbook_is_marked_untrusted": 1,
+    "all_supported_fixtures_cite_core_sources": 1.0
+  },
+  "limitations": "Curated deterministic fixtures only; no live model quality or production retrieval is evaluated."
+}
