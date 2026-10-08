@@ -6,6 +6,7 @@ import os
 import re
 import time
 import uuid
+from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Literal
@@ -50,11 +51,18 @@ ALLOWED_REMEDIATIONS = {"rollback", "failover", "circuit_breaker"}
 
 def create_app(store: Store | None = None) -> FastAPI:
     db = store or Store(Path(os.getenv("SENTINELGRAPH_DB", "data/sentinelgraph.sqlite3")))
-    application = FastAPI(title="SentinelGraph", version="1.0.0", docs_url="/api/docs", redoc_url=None)
+
+    @asynccontextmanager
+    async def lifespan(_application: FastAPI):
+        db.recover_interrupted()
+        yield
+
+    application = FastAPI(
+        title="SentinelGraph", version="1.0.0", docs_url="/api/docs", redoc_url=None, lifespan=lifespan
+    )
     application.state.store = db
     application.state.tasks = set()
     application.state.chaos = {}
-    db.recover_interrupted()
 
     @application.middleware("http")
     async def observe_request(request: Request, call_next):

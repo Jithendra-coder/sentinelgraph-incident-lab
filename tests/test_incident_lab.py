@@ -204,6 +204,14 @@ class IncidentLabTests(unittest.TestCase):
 
 
 class DomainValidationTests(unittest.TestCase):
+    def test_app_creation_defers_database_initialization_until_startup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "startup.sqlite3"
+            app = create_app(Store(path))
+            self.assertFalse(path.exists())
+            with TestClient(app):
+                self.assertTrue(path.exists())
+
     def test_incident_schema_rejects_unrecognized_fields(self):
         with self.assertRaises(ValidationError):
             Incident.model_validate({"id": "x", "extra_tool": "drop_database"})

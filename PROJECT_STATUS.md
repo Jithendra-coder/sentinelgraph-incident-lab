@@ -20,14 +20,14 @@
 | P9 observability | Partial local implementation | JSON request logs, correlated IDs, per-tool timestamps/failures, run metrics, `/api/metrics`; no OpenTelemetry/Grafana/queue dashboard |
 | P10 failure/recovery | Complete for app-level chaos cases | Source outage, malformed evidence, worker failure/restart tests; no model, Redis, or broker exists to chaos-test |
 | P11 delivery/demo pack | Complete for local walkthrough; packaging evidence partial | Responsive Incident Lab, Dockerfile/Compose, CI image build, case study, interview notes, security report, evidence index. Live UI path verified in browser. No saved recording; Docker CLI never returned engine information for a local image smoke test. |
-| P12 incident and approval integrity | Complete for local Demo Mode | Chaos settings round-trip; mismatched idempotency keys return conflict; SQLite transaction atomically claims approval; duplicate concurrent approvals execute once; interrupted remediation is blocked for reconciliation; P95 uses nearest-rank calculation |
+| P12 incident and approval integrity | Complete for local Demo Mode | Chaos settings round-trip; mismatched idempotency keys return conflict; SQLite transaction atomically claims approval; duplicate concurrent approvals execute once; interrupted remediation is blocked for reconciliation; startup defers DB recovery until app lifespan; P95 uses nearest-rank calculation |
 
 ## Latest verification
 
 - Validation ran with Python 3.11 (the shell default is unsupported Python 3.10); project supports Python 3.11+ and the container/CI target is Python 3.12.
-- Unit/integration suite: **18 tests passed**; Ruff and `node --check` passed.
+- Unit/integration suite: **19 tests passed**; Ruff and `node --check` passed.
 - Deterministic evaluation: 4 labeled scenarios; tool selection/order and citation support 1.0, unsupported evidence 0; retrieval Recall@1/3 and MRR 1.0 on 4 queries. These fixture-driven scores are simulated consistency checks, not model quality results.
-- Local measurement (`benchmarks/reports/latest.json`): 4 replay runs, P50 **1,192.01 ms**, P95 **1,239.90 ms** on temporary SQLite. Classification score 4/4 is labeled SIMULATED; model API spend $0 is measured because the run calls no model. This is a small functional sample, not a load test.
+- Local measurement (`benchmarks/reports/latest.json`): 4 replay runs, P50 **983.93 ms**, P95 **989.17 ms** on temporary SQLite. Classification score 4/4 is labeled SIMULATED; model API spend $0 is measured because the run calls no model. This is a small functional sample, not a load test.
 - Wheel build succeeded and includes the static UI and versioned scenario data.
 - Live browser flow: healthy start → database incident → five evidence cards/citations → viewer HTTP 403 → SRE-approved simulated rollback → healthy recovery.
 - Docker CLI was not available in the current shell, so Compose validation and a local image build could not be rerun. CI remains configured to build the image.
