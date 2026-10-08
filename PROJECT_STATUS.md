@@ -1,7 +1,7 @@
 # SentinelGraph project status
 
-**Current phase:** P14 — optional OpenAI advisory analysis
-**Status:** P14 implementation and mocked integration checks complete. The provider is opt-in and advisory-only; no API key or live Prometheus endpoint was configured, so external connectivity and model quality remain unverified. The local Demo Mode remains the default; a saved recording, local Docker smoke test, and cloud deployment remain unverified.
+**Current phase:** P15 — optional provider CI coverage
+**Status:** P15 implementation and local verification complete. CI now installs the optional AI extra and checks that the OpenAI Responses SDK client is constructible without network access. The provider is opt-in and advisory-only; no API key or live Prometheus endpoint was configured, so external connectivity and model quality remain unverified. The local Demo Mode remains the default; a saved recording, local Docker smoke test, and cloud deployment remain unverified.
 **Baseline:** Workspace was empty on 2026-10-04: no existing code, tests, dependency files, repository history, or behaviors.
 
 ## Phase gates
@@ -23,11 +23,12 @@
 | P12 incident and approval integrity | Complete for local Demo Mode | Chaos settings round-trip; mismatched idempotency keys return conflict; SQLite transaction atomically claims approval; duplicate concurrent approvals execute once; interrupted remediation is blocked for reconciliation; startup defers DB recovery until app lifespan; P95 uses nearest-rank calculation |
 | P13 Prometheus metrics read | Complete for mocked adapter path | Optional operator-configured instant query, bearer token from environment, strict vector parsing, bounded response, explicit provenance, source failure trace, mixed live/fixture RCA blocked; live endpoint unavailable for verification |
 | P14 optional model advisory | Complete for mocked adapter path | OpenAI Responses Structured Outputs, opt-in provider and key, no tools or stored response, evidence-ID citation validation, advisory isolated from deterministic diagnosis and approval; live API and independent quality evaluation remain unverified |
+| P15 optional SDK CI check | Complete locally; remote run pending push | CI installs the optional AI extra; tests construct the real Responses SDK client with a dummy local key, assert `responses.parse`, zero retries, and timeout configuration, then close it without an API request |
 
 ## Latest verification
 
 - Validation ran with Python 3.11 (the shell default is unsupported Python 3.10); project supports Python 3.11+ and the container/CI target is Python 3.12.
-- Unit/integration suite: **31 tests passed**; Ruff and `node --check` passed.
+- Unit/integration suite: **32 tests passed with the optional OpenAI SDK installed**; Ruff and `node --check` passed.
 - Deterministic evaluation: 4 labeled scenarios; tool selection/order and citation support 1.0, unsupported evidence 0; retrieval Recall@1/3 and MRR 1.0 on 4 queries. These fixture-driven scores are simulated consistency checks, not model quality results.
 - Local measurement (`benchmarks/reports/latest.json`): 4 replay runs, P50 **1089.21 ms**, P95 **1117.94 ms** on temporary SQLite. Classification score 4/4 is labeled SIMULATED; model API spend $0 is measured because the run calls no model. This is a small functional sample, not a load test.
 - Wheel build succeeded and includes the static UI, versioned scenario data, and optional telemetry and AI extras.
@@ -40,4 +41,4 @@
 - No production auth or real tenant identity. Only metrics has an optional live Prometheus adapter; traces, logs, deployments, and SQL still use fixtures. There is no PostgreSQL, Redis, durable worker queue, OpenTelemetry collector, Prometheus/Grafana deployment, cloud IaC, or public hosting.
 - Four curated incidents and four retrieval queries are too small for broad accuracy/latency claims. The benchmark is a functional local measurement, not a concurrency/load test. Model/provider behavior is mocked in tests; a live API key and Prometheus endpoint were not available.
 - A persistent agent trace screenshot and recorded chaos/recovery walkthrough still need capture when preparing a portfolio submission.
-- The next smallest production-readiness milestones are CI coverage for the optional OpenAI SDK path and an independent evaluation dataset, then live adapters for the remaining evidence sources.
+- The next smallest production-readiness milestones are an independent advisory evaluation dataset, then live adapters for traces, logs, deployments, and SQL.

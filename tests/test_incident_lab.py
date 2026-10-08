@@ -1,4 +1,5 @@
 import asyncio
+import importlib.util
 import json
 import logging
 import tempfile
@@ -406,6 +407,16 @@ class IncidentLabTests(unittest.TestCase):
 
 
 class DomainValidationTests(unittest.TestCase):
+    @unittest.skipUnless(importlib.util.find_spec("openai"), "Install the optional ai extra to check its SDK path")
+    def test_openai_sdk_supports_advisory_client_without_network(self):
+        analyzer = OpenAIAnalysis("test-only-key", "gpt-6.1-sol")
+        try:
+            self.assertTrue(callable(analyzer.client.responses.parse))
+            self.assertEqual(analyzer.client.max_retries, 0)
+            self.assertEqual(float(analyzer.client.timeout), 20.0)
+        finally:
+            asyncio.run(analyzer.close())
+
     def test_openai_provider_requires_explicit_selection_and_api_key(self):
         with (
             patch.dict(
