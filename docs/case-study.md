@@ -18,7 +18,7 @@ The local Incident Lab injects one of four versioned simulated failures. A fixed
 
 ## Failure behavior
 
-Core-source failure, malformed evidence, a failed worker, or a service restart blocks an unsupported root cause and remediation. Optional-source failure remains visible as partial evidence and reduces the demo confidence score. Viewer approval is rejected; deny records an audit event and never calls the write executor. See the [security report](security-report.md) and [evaluation history](../evals/regression-history.md).
+Core-source failure, malformed evidence, a failed worker, or a service restart blocks an unsupported root cause and remediation. Optional-source failure remains visible as partial evidence and reduces the demo confidence score. Viewer approval is rejected; deny records an audit event and never calls the write executor. Concurrent approval requests are claimed transactionally, and interrupted writes are blocked for reconciliation. See the [security report](security-report.md) and [evaluation suite](../evals/README.md).
 
 ## Results
 

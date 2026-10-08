@@ -12,6 +12,9 @@
 - Denial records an audit event and never starts the write executor.
 - An incident ID created under one tenant header returns 404 under another tenant header; repeat submissions with one idempotency key do not create a duplicate.
 - Worker crash and interrupted-service restart become explicit blocked incidents.
+- Concurrent approval requests produce exactly one remediation execution.
+- A restart during approval marks the in-flight remediation blocked and requires reconciliation before retrying.
+- Chaos configuration reads back the full saved configuration; an idempotency key reused for a different scenario is rejected.
 
 The API/integration cases are in [`tests/test_incident_lab.py`](../tests/test_incident_lab.py); deterministic scoring checks are in [`evals/reports/latest.json`](../evals/reports/latest.json).
 

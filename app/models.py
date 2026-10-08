@@ -24,6 +24,7 @@ class Source(StrEnum):
 class IncidentStatus(StrEnum):
     investigating = "investigating"
     awaiting_approval = "awaiting_approval"
+    applying = "applying"
     blocked = "blocked"
     recovered = "recovered"
 

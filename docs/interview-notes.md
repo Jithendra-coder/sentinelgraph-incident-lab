@@ -12,6 +12,10 @@ The fixture investigator uses a typed evidence schema, rejects extra fields, req
 
 Every source has a persisted trace. A missing core source results in `blocked` with an unsupported `unknown` cause and no remediation. A missing optional source is labeled `partial`, with a lower fixed completeness score and reduced confidence.
 
+## How are duplicate approvals prevented?
+
+The SQLite store uses an immediate write transaction to claim a pending decision and move it to `applying` before the handler runs the simulated write. A concurrent request sees a non-pending state and receives HTTP 409. A restart marks an in-flight remediation blocked for reconciliation instead of replaying an action with an uncertain outcome.
+
 ## How is retrieval evaluated?
 
 The versioned evaluation set contains four service-scoped labeled queries. It records Recall@1, Recall@3, and MRR for BM25 + sparse TF-IDF. The query set is too small to imply general semantic retrieval quality; add independently authored incident/runbook pairs before comparing embedding models or rerankers.

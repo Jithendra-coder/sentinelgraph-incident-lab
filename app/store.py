@@ -3,6 +3,7 @@ import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Literal
 
 from app.models import Incident, IncidentStatus, TimelineEvent, now_utc
 
@@ -65,6 +66,40 @@ class Store:
             row = db.execute("SELECT data FROM incidents WHERE id=? AND tenant_id=?", (incident_id, tenant_id)).fetchone()
         return Incident.model_validate_json(row["data"]) if row else None
 
+    def decide_approval(
+        self, incident_id: str, tenant_id: str, decision: Literal["approve", "deny"], actor: str, request_id: str
+    ) -> tuple[Incident | None, bool]:
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT data FROM incidents WHERE id=? AND tenant_id=?", (incident_id, tenant_id)).fetchone()
+            if not row:
+                return None, False
+            incident = Incident.model_validate_json(row["data"])
+            if (
+                incident.status != IncidentStatus.awaiting_approval
+                or not incident.root_cause
+                or not incident.root_cause.supported
+                or not incident.remediation
+                or incident.remediation.status != "pending"
+            ):
+                return incident, False
+            if decision == "deny":
+                incident.remediation.status = "blocked"
+                incident.status = IncidentStatus.blocked
+                message = f"Remediation denied by role {actor}; no write action ran."
+            else:
+                incident.remediation.status = "approved"
+                incident.remediation.actor = actor
+                incident.remediation.approved_at = now_utc()
+                incident.status = IncidentStatus.applying
+                message = "SRE approved the allowlisted simulated remediation."
+            incident.timeline.append(TimelineEvent(kind="approval", message=message, request_id=request_id))
+            db.execute(
+                "UPDATE incidents SET data=? WHERE id=? AND tenant_id=?",
+                (incident.model_dump_json(), incident_id, tenant_id),
+            )
+            return incident, True
+
     def list(self, tenant_id: str, limit: int = 100) -> list[Incident]:
         with self.connect() as db:
             rows = db.execute("SELECT data FROM incidents WHERE tenant_id=? ORDER BY created_at DESC LIMIT ?", (tenant_id, limit)).fetchall()
@@ -77,9 +112,27 @@ class Store:
             rows = db.execute("SELECT data FROM incidents").fetchall()
             for row in rows:
                 incident = Incident.model_validate_json(row["data"])
-                if incident.status == IncidentStatus.investigating:
+                interrupted_approval = (
+                    incident.status == IncidentStatus.awaiting_approval
+                    and incident.remediation
+                    and incident.remediation.status == "approved"
+                )
+                if incident.status in {IncidentStatus.investigating, IncidentStatus.applying} or interrupted_approval:
+                    uncertain_write = incident.status == IncidentStatus.applying or interrupted_approval
                     incident.status = IncidentStatus.blocked
-                    incident.timeline.append(TimelineEvent(kind="failure", message="Investigation interrupted by service restart; start a new replay."))
+                    if uncertain_write and incident.remediation:
+                        incident.remediation.status = "blocked"
+                    for call in incident.tool_trace:
+                        if call.status == "running":
+                            call.status = "blocked"
+                            call.completed_at = now_utc()
+                            call.error = "Operation interrupted by service restart; reconcile before retrying."
+                    message = (
+                        "Remediation may have been interrupted by service restart; reconcile its outcome before retrying."
+                        if uncertain_write
+                        else "Investigation interrupted by service restart; start a new replay."
+                    )
+                    incident.timeline.append(TimelineEvent(kind="failure", message=message))
                     incident.completed_at = now_utc()
                     incidents.append(incident)
         for incident in incidents:

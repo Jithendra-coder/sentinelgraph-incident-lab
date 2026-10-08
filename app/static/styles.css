@@ -646,7 +646,8 @@ body {
   background: #82bdf7;
   box-shadow: 0 0 7px #82bdf766;
 }
-.status-dot.awaiting_approval {
+.status-dot.awaiting_approval,
+.status-dot.applying {
   background: #f4bd6e;
   box-shadow: 0 0 7px #f4bd6e55;
 }
@@ -757,7 +758,8 @@ body {
   color: #9fcdf5;
   background: #1b2932;
 }
-.status-label.awaiting_approval {
+.status-label.awaiting_approval,
+.status-label.applying {
   color: #f4c780;
   background: #362a1d;
 }
@@ -1686,7 +1688,8 @@ footer b {
   color: #286d9e;
   background: #eaf3fa;
 }
-.status-label.awaiting_approval {
+.status-label.awaiting_approval,
+.status-label.applying {
   color: #8b5d14;
   background: #fff4df;
 }

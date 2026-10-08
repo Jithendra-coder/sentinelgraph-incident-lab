@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import math
 import os
 import re
 import time
@@ -258,6 +259,8 @@ def create_app(store: Store | None = None) -> FastAPI:
         )
         incident, created = db.create_or_get(incident, idempotency_key)
         if not created:
+            if incident.scenario_id != scenario["id"]:
+                raise HTTPException(409, "Idempotency-Key was already used for a different scenario.")
             response.status_code = 200
             return incident
         chaos = application.state.chaos.get(tenant, ChaosConfig())
@@ -272,7 +275,7 @@ def create_app(store: Store | None = None) -> FastAPI:
 
     @application.get("/api/chaos", response_model=ChaosConfig)
     async def get_chaos(x_tenant_id: str = Header("demo")):
-        return ChaosConfig(fail_sources=sorted(application.state.chaos.get(tenant_or_400(x_tenant_id), set()), key=lambda item: item.value))
+        return application.state.chaos.get(tenant_or_400(x_tenant_id), ChaosConfig())
 
     @application.put("/api/chaos", response_model=ChaosConfig)
     async def set_chaos(payload: ChaosConfig, x_tenant_id: str = Header("demo")):
@@ -296,19 +299,15 @@ def create_app(store: Store | None = None) -> FastAPI:
             event(incident, "approval", "Approval request rejected for viewer role; no write action ran.")
             db.save(incident)
             raise HTTPException(403, "SRE role required to approve remediation.")
-        if incident.status != IncidentStatus.awaiting_approval or not incident.root_cause or not incident.root_cause.supported or not incident.remediation:
+        incident, decided = db.decide_approval(
+            incident.id, incident.tenant_id, payload.decision, x_role, request_context.get()
+        )
+        if not incident:
+            raise HTTPException(404, "Incident not found.")
+        if not decided:
             raise HTTPException(409, "Incident has no supported remediation awaiting approval.")
         if payload.decision == "deny":
-            incident.remediation.status = "blocked"
-            incident.status = IncidentStatus.blocked
-            event(incident, "approval", f"Remediation denied by role {x_role}; no write action ran.")
-            db.save(incident)
             return incident
-        incident.remediation.status = "approved"
-        incident.remediation.actor = x_role
-        incident.remediation.approved_at = now_utc()
-        event(incident, "approval", "SRE approved the allowlisted simulated remediation.")
-        db.save(incident)
         write = trace(incident, "remediation", "running", permission="write")
         incident.tool_trace.append(write)
         event(incident, "tool", f"Isolated write executor started action {incident.remediation.action} after approval.")
@@ -336,7 +335,7 @@ def create_app(store: Store | None = None) -> FastAPI:
         tenant = tenant_or_400(x_tenant_id)
         incidents = db.list(tenant)
         latencies = sorted(row.metrics.latency_ms for row in incidents if row.completed_at)
-        p95 = latencies[min(len(latencies) - 1, int((len(latencies) - 1) * 0.95))] if latencies else 0
+        p95 = latencies[math.ceil(len(latencies) * 0.95) - 1] if latencies else 0
         lines = [
             "# HELP sentinelgraph_incidents_total Reproducible simulated incidents by state.",
             "# TYPE sentinelgraph_incidents_total gauge",

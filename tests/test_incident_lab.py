@@ -3,6 +3,7 @@ import logging
 import tempfile
 import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -10,7 +11,7 @@ from pydantic import ValidationError
 
 from app.evaluation import run_evaluations
 from app.main import create_app
-from app.models import Incident, IncidentStatus
+from app.models import Incident, IncidentStatus, Remediation, RunMetrics, ToolTrace, now_utc
 from app.store import Store
 
 ROOT = Path(__file__).parents[1]
@@ -95,6 +96,26 @@ class IncidentLabTests(unittest.TestCase):
         self.assertEqual(write["permission"], "write")
         self.assertEqual(write["status"], "succeeded")
 
+    def test_concurrent_approvals_execute_only_once(self):
+        incident = self.inject_and_wait("deployment-regression")
+        endpoint = f"/api/incidents/{incident['id']}/approval"
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [
+                executor.submit(
+                    self.client.post,
+                    endpoint,
+                    json={"decision": "approve"},
+                    headers={"X-Role": "sre"},
+                )
+                for _ in range(2)
+            ]
+            responses = [future.result() for future in futures]
+        self.assertEqual(sorted(response.status_code for response in responses), [200, 409])
+        final = self.client.get(f"/api/incidents/{incident['id']}").json()
+        writes = [call for call in final["tool_trace"] if call["tool"] == "remediation"]
+        self.assertEqual(len(writes), 1)
+        self.assertEqual(writes[0]["status"], "succeeded")
+
     def test_deny_never_runs_write_executor(self):
         incident = self.inject_and_wait("cache-outage")
         denied = self.client.post(f"/api/incidents/{incident['id']}/approval", json={"decision": "deny"})
@@ -133,6 +154,19 @@ class IncidentLabTests(unittest.TestCase):
         self.assertEqual(first.json()["id"], second.json()["id"])
         self.assertEqual(len(self.client.get("/api/incidents").json()), 1)
 
+    def test_idempotency_key_rejects_a_different_scenario(self):
+        headers = {"Idempotency-Key": "same-key-different-request"}
+        first = self.client.post("/api/incidents", json={"scenario_id": "database-saturation"}, headers=headers)
+        second = self.client.post("/api/incidents", json={"scenario_id": "cache-outage"}, headers=headers)
+        self.assertEqual(first.status_code, 202)
+        self.assertEqual(second.status_code, 409)
+        self.assertEqual(len(self.client.get("/api/incidents").json()), 1)
+
+    def test_chaos_settings_round_trip(self):
+        config = {"fail_sources": ["sql"], "malformed_source": "logs", "simulate_worker_crash": True}
+        self.assertEqual(self.client.put("/api/chaos", json=config).status_code, 200)
+        self.assertEqual(self.client.get("/api/chaos").json(), config)
+
     def test_demo_eval_report_meets_retrieval_and_trace_thresholds(self):
         report = run_evaluations()
         self.assertEqual(report["label"], "SIMULATED")
@@ -148,6 +182,25 @@ class IncidentLabTests(unittest.TestCase):
         response = self.client.get("/api/metrics")
         self.assertEqual(response.status_code, 200)
         self.assertIn("sentinelgraph_investigation_latency_p95_ms", response.text)
+
+    def test_prometheus_p95_uses_nearest_rank_for_small_samples(self):
+        for index, latency in enumerate((10, 20, 30, 40)):
+            self.store.save(
+                Incident(
+                    id=f"latency-{index}",
+                    agent_run_id=f"run-{index}",
+                    tenant_id="demo",
+                    scenario_id="database-saturation",
+                    title="Latency sample",
+                    service="checkout-api",
+                    symptom="test",
+                    status=IncidentStatus.blocked,
+                    completed_at=now_utc(),
+                    metrics=RunMetrics(latency_ms=latency),
+                )
+            )
+        response = self.client.get("/api/metrics")
+        self.assertIn("sentinelgraph_investigation_latency_p95_ms 40", response.text)
 
 
 class DomainValidationTests(unittest.TestCase):
@@ -174,6 +227,57 @@ class DomainValidationTests(unittest.TestCase):
             recovered = store.get("interrupted", "demo")
             self.assertEqual(recovered.status, IncidentStatus.blocked)
             self.assertIn("service restart", recovered.timeline[-1].message)
+
+    def test_store_restart_blocks_an_interrupted_remediation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = Store(Path(directory) / "approval-restart.sqlite3")
+            store.initialize()
+            incident = Incident(
+                id="interrupted-approval",
+                agent_run_id="run-approval",
+                tenant_id="demo",
+                scenario_id="database-saturation",
+                title="Restart test",
+                service="checkout-api",
+                symptom="test",
+                status=IncidentStatus.applying,
+                root_cause={
+                    "cause_id": "cause",
+                    "summary": "supported",
+                    "confidence": 1,
+                    "citations": ["e1"],
+                    "supported": True,
+                    "quality": "complete",
+                },
+                remediation=Remediation(action="rollback", description="rollback", risk="risk", status="approved"),
+                tool_trace=[
+                    ToolTrace(
+                        id="write-1",
+                        incident_id="interrupted-approval",
+                        agent_run_id="run-approval",
+                        tool="remediation",
+                        status="running",
+                        permission="write",
+                    )
+                ],
+            )
+            store.save(incident)
+            legacy = incident.model_copy(deep=True)
+            legacy.id = "legacy-interrupted-approval"
+            legacy.agent_run_id = "run-legacy-approval"
+            legacy.status = IncidentStatus.awaiting_approval
+            legacy.tool_trace[0].incident_id = legacy.id
+            legacy.tool_trace[0].agent_run_id = legacy.agent_run_id
+            store.save(legacy)
+            self.assertEqual(store.recover_interrupted(), 2)
+            recovered = store.get("interrupted-approval", "demo")
+            self.assertEqual(recovered.status, IncidentStatus.blocked)
+            self.assertEqual(recovered.remediation.status, "blocked")
+            self.assertEqual(recovered.tool_trace[0].status, "blocked")
+            self.assertIn("reconcile", recovered.timeline[-1].message)
+            recovered_legacy = store.get("legacy-interrupted-approval", "demo")
+            self.assertEqual(recovered_legacy.status, IncidentStatus.blocked)
+            self.assertIn("reconcile", recovered_legacy.timeline[-1].message)
 
 
 if __name__ == "__main__":

@@ -70,6 +70,7 @@ function statusLabel(status) {
     {
       investigating: "Collecting evidence",
       awaiting_approval: "Approval required",
+      applying: "Applying approved action",
       blocked: "Blocked safely",
       recovered: "Recovered",
     }[status] || status

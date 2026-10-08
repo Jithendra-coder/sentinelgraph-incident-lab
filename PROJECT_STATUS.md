@@ -1,7 +1,7 @@
 # SentinelGraph project status
 
-**Current phase:** P11 — reproducible local Demo Mode and evidence pack
-**Status:** Local portfolio release complete. The technical walkthrough is working; a saved recording, local Docker smoke test, and cloud deployment remain unverified.
+**Current phase:** P12 — incident and approval integrity hardening
+**Status:** P12 complete. The local Demo Mode remains the supported release; a saved recording, local Docker smoke test, and cloud deployment remain unverified.
 **Baseline:** Workspace was empty on 2026-10-04: no existing code, tests, dependency files, repository history, or behaviors.
 
 ## Phase gates
@@ -20,16 +20,17 @@
 | P9 observability | Partial local implementation | JSON request logs, correlated IDs, per-tool timestamps/failures, run metrics, `/api/metrics`; no OpenTelemetry/Grafana/queue dashboard |
 | P10 failure/recovery | Complete for app-level chaos cases | Source outage, malformed evidence, worker failure/restart tests; no model, Redis, or broker exists to chaos-test |
 | P11 delivery/demo pack | Complete for local walkthrough; packaging evidence partial | Responsive Incident Lab, Dockerfile/Compose, CI image build, case study, interview notes, security report, evidence index. Live UI path verified in browser. No saved recording; Docker CLI never returned engine information for a local image smoke test. |
+| P12 incident and approval integrity | Complete for local Demo Mode | Chaos settings round-trip; mismatched idempotency keys return conflict; SQLite transaction atomically claims approval; duplicate concurrent approvals execute once; interrupted remediation is blocked for reconciliation; P95 uses nearest-rank calculation |
 
 ## Latest verification
 
-- Python 3.11.0 on Windows 10; project supports Python 3.11+ and the container/CI target is Python 3.12.
-- Unit/integration suite: **13 tests passed**; Ruff, Python compile, and `node --check` passed.
+- Validation ran with Python 3.11 (the shell default is unsupported Python 3.10); project supports Python 3.11+ and the container/CI target is Python 3.12.
+- Unit/integration suite: **18 tests passed**; Ruff and `node --check` passed.
 - Deterministic evaluation: 4 labeled scenarios; tool selection/order and citation support 1.0, unsupported evidence 0; retrieval Recall@1/3 and MRR 1.0 on 4 queries. These fixture-driven scores are simulated consistency checks, not model quality results.
-- Local measurement (`benchmarks/reports/latest.json`): 4 replay runs, P50 **1,022.75 ms**, P95 **1,041.13 ms** on temporary SQLite. Classification score 4/4 is labeled SIMULATED; model API spend $0 is measured because the run calls no model. This is a small functional sample, not a load test.
+- Local measurement (`benchmarks/reports/latest.json`): 4 replay runs, P50 **1,192.01 ms**, P95 **1,239.90 ms** on temporary SQLite. Classification score 4/4 is labeled SIMULATED; model API spend $0 is measured because the run calls no model. This is a small functional sample, not a load test.
 - Wheel build succeeded and includes the static UI and versioned scenario data.
 - Live browser flow: healthy start → database incident → five evidence cards/citations → viewer HTTP 403 → SRE-approved simulated rollback → healthy recovery.
-- Docker Compose syntax validation passed. Docker Desktop was started; its engine pipe appeared, but `docker info` and `docker version` stalled without a server response, so the local image build remains unverified.
+- Docker CLI was not available in the current shell, so Compose validation and a local image build could not be rerun. CI remains configured to build the image.
 
 ## Known limits and next upgrade
 
