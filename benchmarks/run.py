@@ -7,6 +7,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
@@ -25,6 +26,15 @@ def run() -> dict:
     latencies = []
     correct = 0
     with (
+        patch.dict(
+            "os.environ",
+            {
+                "SENTINELGRAPH_ANALYSIS_PROVIDER": "demo",
+                "SENTINELGRAPH_PROMETHEUS_URL": "",
+                "SENTINELGRAPH_PROMETHEUS_QUERY": "",
+                "SENTINELGRAPH_PROMETHEUS_TOKEN": "",
+            },
+        ),
         tempfile.TemporaryDirectory() as directory,
         TestClient(create_app(Store(Path(directory) / "benchmark.sqlite3"))) as client,
     ):

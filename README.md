@@ -32,6 +32,12 @@ python -m uvicorn app.main:app --reload
 
 Set `SENTINELGRAPH_PROMETHEUS_TOKEN` in the environment when the endpoint requires a bearer token; bearer tokens require HTTPS except for loopback development. For Docker Desktop, a host Prometheus server is usually reachable at `http://host.docker.internal:9090` when no token is needed. The query is operator-supplied, never accepted from an incident request. Metrics evidence is labeled `PROMETHEUS`; traces, logs, deployment, and SQL evidence remain fixtures. Because the RCA is grounded in scenario fixtures, mixing live metrics with them blocks the scenario diagnosis and remediation. No live systems are written to.
 
+### Optional OpenAI advisory
+
+The default remains deterministic and makes no model call. To enable advisory-only analysis, install `python -m pip install -e ".[ai]"`, set `SENTINELGRAPH_ANALYSIS_PROVIDER=openai`, and provide `OPENAI_API_KEY` through your shell or secret manager. The default model is `gpt-6.1-sol`; override it with `SENTINELGRAPH_OPENAI_MODEL` if needed.
+
+Each call sends the incident symptom and collected evidence to OpenAI. The Responses API uses Pydantic Structured Outputs, disables response storage, and has no tools. The app validates every cited evidence ID and stores the result as a human-review advisory. It never changes deterministic RCA, incident status, or remediation approval. Token usage is recorded; dollar cost is marked unknown unless pricing is configured. See the [Structured Outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses) and [Responses API reference](https://developers.openai.com/api/reference/python/resources/responses/methods/create).
+
 ## Verify
 
 ```powershell
@@ -61,4 +67,4 @@ Use the visible Chaos controls to fail an evidence adapter on the next run, or i
 - [Current phase, results, and remaining gaps](PROJECT_STATUS.md)
 - [Local deployment boundary](infrastructure/README.md)
 
-The default path does not call an LLM or connect to production systems. Root-cause labels and four of the five evidence sources are curated simulated data; an optional Prometheus metrics read is labeled separately and blocks fixture-based diagnosis when mixed in. The demo's role/tenant headers illustrate policy checks but are not authenticated identities; do not expose the local app publicly. See the threat model before adapting it.
+The default path does not call an LLM or connect to production systems. Root-cause labels and four of the five evidence sources are curated simulated data; an optional Prometheus metrics read is labeled separately and blocks fixture-based diagnosis when mixed in. OpenAI is optional and advisory only. The demo's role/tenant headers illustrate policy checks but are not authenticated identities; do not expose the local app publicly. See the threat model before adapting it.

@@ -12,6 +12,7 @@ The local Incident Lab injects one of four versioned simulated failures. A fixed
 
 - Demo Mode is deterministic and works without model credentials or third-party calls.
 - The optional Prometheus connector is read-only and operator-configured; a live adapter for traces, logs, deployments, and SQL is still required for real multi-source RCA.
+- Optional OpenAI Responses analysis provides a structured, evidence-ID-validated advisory. It has no tools and cannot alter the deterministic RCA or simulated approval gate.
 - SQLite and one in-process worker keep the portfolio demo runnable with one container. Durable queue replay and multi-worker coordination are deferred until measured need exists.
 - A fixed state sequence is used instead of LangGraph because the demo has one bounded path; adding a graph framework would not make this fixture flow more capable.
 - BM25 + sparse TF-IDF provides reproducible hybrid lexical search. Semantic vectors and a reranker are deferred pending a larger labeled set.
@@ -27,4 +28,4 @@ The current reproducible local measurements are in [`benchmarks/reports/latest.j
 
 ## What is not proven
 
-The role and tenant headers are demonstration controls, not authenticated identity. The fixtures are curated; the confidence value is a fixed completeness score, not a probability. There is no LLM, live multi-source adapter, semantic retriever, database/message broker cluster, cloud deployment, load test, or saved screen recording. See the [architecture](architecture.md) and [threat model](threat-model.md) for upgrade boundaries.
+The role and tenant headers are demonstration controls, not authenticated identity. The fixtures are curated; the confidence value is a fixed completeness score, not a probability. The model advisory has not been quality-evaluated against an independent incident dataset. There is no live multi-source adapter, semantic retriever, database/message broker cluster, cloud deployment, load test, or saved screen recording. See the [architecture](architecture.md) and [threat model](threat-model.md) for upgrade boundaries.

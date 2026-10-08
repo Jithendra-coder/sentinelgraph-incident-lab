@@ -8,6 +8,10 @@ The demo currently has one bounded sequence and no alternate model-driven branch
 
 The investigator uses a typed evidence schema, rejects extra fields, requires scenario-specific core sources, and validates citation IDs against collected evidence. The optional Prometheus read uses an operator-configured query; incident requests cannot change its URL or PromQL. A live metrics observation cannot be combined with fixture ground truth to claim a supported diagnosis. The separate writer supports three fixed simulated actions and checks the approval role. The demo does not claim real identity enforcement; authentication must precede any external deployment.
 
+## What does the OpenAI model do, and can it take actions?
+
+When explicitly enabled, one Responses API call returns a structured advisory with citations that the server checks against collected evidence IDs. The call has no tools, and the result does not determine the fixture RCA, incident status, or remediation approval. Token usage is recorded; cost is marked unknown because model pricing is not hard-coded.
+
 ## What happens when a source is unavailable?
 
 Every source has a persisted trace. A missing core source results in `blocked` with an unsupported `unknown` cause and no remediation. A missing optional source is labeled `partial`, with a lower fixed completeness score and reduced confidence.

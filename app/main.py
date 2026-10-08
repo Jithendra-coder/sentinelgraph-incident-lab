@@ -49,7 +49,7 @@ TENANT = re.compile(r"^[a-zA-Z0-9_-]{1,40}$")
 ALLOWED_REMEDIATIONS = {"rollback", "failover", "circuit_breaker"}
 
 
-def create_app(store: Store | None = None, prometheus_metrics=None) -> FastAPI:
+def create_app(store: Store | None = None, prometheus_metrics=None, openai_analysis=None) -> FastAPI:
     db = store or Store(Path(os.getenv("SENTINELGRAPH_DB", "data/sentinelgraph.sqlite3")))
     if prometheus_metrics is None:
         prometheus_url = os.getenv("SENTINELGRAPH_PROMETHEUS_URL", "").strip()
@@ -61,11 +61,29 @@ def create_app(store: Store | None = None, prometheus_metrics=None) -> FastAPI:
             from app.prometheus import PrometheusMetrics
 
             prometheus_metrics = PrometheusMetrics(prometheus_url, prometheus_query, prometheus_token or None)
+    analysis_provider = os.getenv("SENTINELGRAPH_ANALYSIS_PROVIDER", "demo").strip().lower() or "demo"
+    if analysis_provider not in {"demo", "openai"}:
+        raise RuntimeError("SENTINELGRAPH_ANALYSIS_PROVIDER must be 'demo' or 'openai'.")
+    if openai_analysis is None and analysis_provider == "openai":
+        api_key = os.getenv("OPENAI_API_KEY", "").strip()
+        if not api_key:
+            raise RuntimeError("OPENAI_API_KEY is required when SENTINELGRAPH_ANALYSIS_PROVIDER=openai.")
+        from app.openai_analysis import OpenAIAnalysis
+
+        model = os.getenv("SENTINELGRAPH_OPENAI_MODEL", "").strip() or "gpt-6.1-sol"
+        openai_analysis = OpenAIAnalysis(api_key, model)
 
     @asynccontextmanager
     async def lifespan(_application: FastAPI):
-        db.recover_interrupted()
-        yield
+        try:
+            db.recover_interrupted()
+            yield
+        finally:
+            analyzer = _application.state.openai_analysis
+            if analyzer:
+                close = getattr(analyzer, "close", None)
+                if close:
+                    await close()
 
     application = FastAPI(
         title="SentinelGraph", version="1.0.0", docs_url="/api/docs", redoc_url=None, lifespan=lifespan
@@ -74,6 +92,7 @@ def create_app(store: Store | None = None, prometheus_metrics=None) -> FastAPI:
     application.state.tasks = set()
     application.state.chaos = {}
     application.state.prometheus_metrics = prometheus_metrics
+    application.state.openai_analysis = openai_analysis
 
     @application.middleware("http")
     async def observe_request(request: Request, call_next):
@@ -117,6 +136,8 @@ def create_app(store: Store | None = None, prometheus_metrics=None) -> FastAPI:
     async def investigate(incident: Incident, scenario: dict, chaos: ChaosConfig) -> None:
         started = time.perf_counter()
         failures = set(chaos.fail_sources)
+        model_tokens = 0
+        model_attempted = False
         try:
             for source in SOURCES:
                 call = trace(incident, source, "running")
@@ -189,6 +210,26 @@ def create_app(store: Store | None = None, prometheus_metrics=None) -> FastAPI:
                 event(incident, "failure", "No matching runbook was retrieved; remediation remains blocked.")
             db.save(incident)
 
+            if application.state.openai_analysis and incident.evidence:
+                model_attempted = True
+                analysis = trace(incident, "model_analysis", "running", permission="read")
+                incident.tool_trace.append(analysis)
+                event(incident, "tool", "OpenAI advisory started; symptom and evidence are sent to the configured provider.")
+                db.save(incident)
+                try:
+                    incident.advisory, model_tokens = await application.state.openai_analysis.analyze(
+                        incident.symptom, incident.evidence
+                    )
+                except RuntimeError as exc:
+                    analysis.status = "failed"
+                    analysis.error = str(exc)
+                    event(incident, "failure", "OpenAI advisory failed; deterministic policy remains in control.")
+                else:
+                    analysis.status = "succeeded"
+                    event(incident, "analysis", "OpenAI advisory is available for human review; it does not change RCA or remediation policy.")
+                analysis.completed_at = now_utc()
+                db.save(incident)
+
             incident.root_cause, incident.quality = derive_root_cause(scenario, incident.evidence, set(incident.failed_sources))
             supported = incident.root_cause.supported
             if supported:
@@ -215,8 +256,9 @@ def create_app(store: Store | None = None, prometheus_metrics=None) -> FastAPI:
             incident.completed_at = now_utc()
             incident.metrics = RunMetrics(
                 latency_ms=round((time.perf_counter() - started) * 1000, 2),
-                api_cost_usd=0,
-                model_tokens=0,
+                api_cost_usd=None if model_attempted else 0,
+                cost_label="UNKNOWN" if model_attempted else "MEASURED",
+                model_tokens=model_tokens,
                 tool_calls=len(incident.tool_trace),
                 failed_tools=sum(call.status == "failed" for call in incident.tool_trace),
             )
@@ -236,6 +278,9 @@ def create_app(store: Store | None = None, prometheus_metrics=None) -> FastAPI:
             incident.completed_at = now_utc()
             incident.metrics = RunMetrics(
                 latency_ms=round((time.perf_counter() - started) * 1000, 2),
+                api_cost_usd=None if model_attempted else 0,
+                cost_label="UNKNOWN" if model_attempted else "MEASURED",
+                model_tokens=model_tokens,
                 tool_calls=len(incident.tool_trace),
                 failed_tools=sum(call.status == "failed" for call in incident.tool_trace),
             )

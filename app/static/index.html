@@ -37,8 +37,8 @@
           <div>
             <strong>Deterministic by design</strong>
             <p>
-              Four sources use fixtures. Optional Prometheus metrics are
-              read-only; recovery writes stay simulated.
+              Four sources use fixtures. Prometheus reads and OpenAI advice are
+              optional; recovery writes stay simulated.
             </p>
           </div>
         </div>
@@ -105,7 +105,7 @@
             <strong class="metric-value" id="metric-active"
               >0 <em>running</em></strong
             >
-            <div class="metric-foot">Bounded reads · max 6 tool steps</div>
+            <div class="metric-foot">6 fixed reads · optional advisory call</div>
           </div>
           <div class="metric-card">
             <div class="metric-top">
@@ -121,11 +121,11 @@
           <div class="metric-card">
             <div class="metric-top">
               <span class="metric-icon violet">$</span
-              ><span class="metric-caption">MODEL API SPEND</span
-              ><span class="metric-caption right">MEASURED</span>
+              ><span class="metric-caption">MODEL ANALYSIS</span
+              ><span class="metric-caption right">ADVISORY ONLY</span>
             </div>
-            <strong class="metric-value">$0.00 <em>USD</em></strong>
-            <div class="metric-foot">Deterministic engine · 0 model tokens</div>
+            <strong class="metric-value">Human review</strong>
+            <div class="metric-foot">Per-run token use and cost status appear below</div>
           </div>
         </section>
 
@@ -228,8 +228,8 @@
         <footer>
           <span>SentinelGraph <b>v1.0.0</b></span
           ><span
-            >DEMO FIXTURES <i>·</i> OPTIONAL PROMETHEUS READ <i>·</i> LOCAL
-            SQLITE</span
+            >DEMO FIXTURES <i>·</i> OPTIONAL PROMETHEUS READ <i>·</i> OPTIONAL
+            OPENAI ADVISORY <i>·</i> LOCAL SQLITE</span
           ><a href="/api/docs" target="_blank" rel="noreferrer">API DOCS ↗</a>
         </footer>
       </main>

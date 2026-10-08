@@ -51,7 +51,7 @@ class ToolTrace(StrictModel):
     request_id: str = "demo"
     incident_id: str
     agent_run_id: str
-    tool: Source | Literal["runbooks", "remediation", "orchestrator"]
+    tool: Source | Literal["runbooks", "model_analysis", "remediation", "orchestrator"]
     status: Literal["running", "succeeded", "failed", "blocked"]
     started_at: datetime = Field(default_factory=now_utc)
     completed_at: datetime | None = None
@@ -90,12 +90,19 @@ class RetrievedRunbook(StrictModel):
 class RunMetrics(StrictModel):
     latency_ms: float = 0
     latency_label: Literal["MEASURED"] = "MEASURED"
-    api_cost_usd: float = 0
-    cost_label: Literal["MEASURED"] = "MEASURED"
+    api_cost_usd: float | None = 0
+    cost_label: Literal["MEASURED", "UNKNOWN"] = "MEASURED"
     model_tokens: int = 0
     tool_calls: int = 0
     failed_tools: int = 0
     retries: int = 0
+
+
+class AdvisoryAnalysis(StrictModel):
+    summary: str = Field(min_length=1, max_length=1000)
+    citations: list[str] = Field(max_length=8)
+    model: str
+    provider: Literal["OPENAI"] = "OPENAI"
 
 
 class Incident(StrictModel):
@@ -114,6 +121,7 @@ class Incident(StrictModel):
     evidence: list[Evidence] = Field(default_factory=list)
     tool_trace: list[ToolTrace] = Field(default_factory=list)
     root_cause: RootCause | None = None
+    advisory: AdvisoryAnalysis | None = None
     remediation: Remediation | None = None
     runbook: RetrievedRunbook | None = None
     failed_sources: list[Source] = Field(default_factory=list)

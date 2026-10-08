@@ -7,7 +7,7 @@
 - Unknown fields on Pydantic domain and request models are rejected.
 - An unavailable required SQL evidence source produces a failed trace, an unsupported `unknown` cause, blocked status, and no remediation.
 - An injected malformed SQL adapter payload is rejected by strict schema validation and blocks the incident.
-- The unsafe runbook test fixture can be retrieved but is marked untrusted; the app has no model/tool instruction channel that can execute its text.
+- The unsafe runbook test fixture can be retrieved but is marked untrusted. Optional model analysis receives the symptom and collected evidence as data, has no tools, and cannot execute runbook text or actions.
 - `viewer` cannot approve. The rejection is recorded; no write trace appears. The `sre` role can approve the fixed rollback simulation.
 - Denial records an audit event and never starts the write executor.
 - An incident ID created under one tenant header returns 404 under another tenant header; repeat submissions with one idempotency key do not create a duplicate.
@@ -20,4 +20,4 @@ The API/integration cases are in [`tests/test_incident_lab.py`](../tests/test_in
 
 ## Limits
 
-Tenant and role headers are caller-controlled. The tests validate route scoping and policy flow only; they do not prove authenticated authorization or prevent header spoofing. No model means prompt-injection tests only verify retrieval labeling and the absence of a write-through instruction path. No Redis, PostgreSQL, or external service exists to simulate its outage. Do not expose this demo publicly or connect real remediation credentials.
+Tenant and role headers are caller-controlled. The tests validate route scoping and policy flow only; they do not prove authenticated authorization or prevent header spoofing. The optional OpenAI advisory has no tool channel and does not control the deterministic diagnosis or approval gate; its output is not yet evaluated against an independent incident set. No Redis, PostgreSQL, or external service exists to simulate its outage. Do not expose this demo publicly or connect real remediation credentials.

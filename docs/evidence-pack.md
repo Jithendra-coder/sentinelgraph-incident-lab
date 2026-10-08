@@ -10,4 +10,4 @@
 - **Interactive agent trace:** the running local browser demo at <http://127.0.0.1:8765> shows the completed simulated database incident, citations, approval audit, rollback write trace, and recovered health.
 - **Demo recording:** not saved. The local flow is repeatable using [the walkthrough](demo.md); record it when preparing the portfolio submission.
 
-The current trace was exercised during development, but a screenshot/recording binary is not included in the repository. All fixture scores are clearly labeled simulated; local latency and zero model API spend are measured under the documented four-run environment.
+The current trace was exercised during development, but a screenshot/recording binary is not included in the repository. All fixture scores are clearly labeled simulated; local latency and zero model API spend describe the four-run Demo Mode benchmark, which calls no model.
