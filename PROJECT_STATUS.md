@@ -1,7 +1,7 @@
 # SentinelGraph project status
 
 **Current phase:** P15 — optional provider CI coverage
-**Status:** P15 implementation and local verification complete. CI now installs the optional AI extra and checks that the OpenAI Responses SDK client is constructible without network access. The provider is opt-in and advisory-only; no API key or live Prometheus endpoint was configured, so external connectivity and model quality remain unverified. The local Demo Mode remains the default; a saved recording, local Docker smoke test, and cloud deployment remain unverified.
+**Status:** P15 implementation and local and GitHub Actions verification complete. CI installs the optional AI extra and checks that the OpenAI Responses SDK client is constructible without network access. The provider is opt-in and advisory-only; no API key or live Prometheus endpoint was configured, so external connectivity and model quality remain unverified. The local Demo Mode remains the default; a saved recording, local Docker smoke test, and cloud deployment remain unverified.
 **Baseline:** Workspace was empty on 2026-10-04: no existing code, tests, dependency files, repository history, or behaviors.
 
 ## Phase gates
@@ -23,7 +23,7 @@
 | P12 incident and approval integrity | Complete for local Demo Mode | Chaos settings round-trip; mismatched idempotency keys return conflict; SQLite transaction atomically claims approval; duplicate concurrent approvals execute once; interrupted remediation is blocked for reconciliation; startup defers DB recovery until app lifespan; P95 uses nearest-rank calculation |
 | P13 Prometheus metrics read | Complete for mocked adapter path | Optional operator-configured instant query, bearer token from environment, strict vector parsing, bounded response, explicit provenance, source failure trace, mixed live/fixture RCA blocked; live endpoint unavailable for verification |
 | P14 optional model advisory | Complete for mocked adapter path | OpenAI Responses Structured Outputs, opt-in provider and key, no tools or stored response, evidence-ID citation validation, advisory isolated from deterministic diagnosis and approval; live API and independent quality evaluation remain unverified |
-| P15 optional SDK CI check | Complete locally; remote run pending push | CI installs the optional AI extra; tests construct the real Responses SDK client with a dummy local key, assert `responses.parse`, zero retries, and timeout configuration, then close it without an API request |
+| P15 optional SDK CI check | Complete locally and on GitHub Actions | The successful CI run installs the optional AI extra, runs the tests/evaluation/benchmark, validates Compose, and builds the Docker image; the SDK test constructs a client without making an API request |
 
 ## Latest verification
 
