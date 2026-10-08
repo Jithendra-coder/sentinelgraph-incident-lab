@@ -6,11 +6,12 @@ During an outage, responders need to connect symptoms across metrics, traces, lo
 
 ## Design
 
-The local Incident Lab injects one of four versioned simulated failures. A fixed asynchronous investigation reads five typed sources, performs a service-filtered BM25 + sparse TF-IDF runbook search, validates the incident-specific core evidence, and reports citations. SQLite persists timeline events and tool traces. A separate allowlisted simulated remediation executor only runs after an SRE-role approval request.
+The local Incident Lab injects one of four versioned simulated failures. A fixed asynchronous investigation reads five typed sources, performs a service-filtered BM25 + sparse TF-IDF runbook search, validates the incident-specific core evidence, and reports citations. Metrics can optionally come from a configured Prometheus instant query; the other four sources remain fixtures, and mixing the two provenance types blocks fixture-grounded RCA. SQLite persists timeline events and tool traces. A separate allowlisted simulated remediation executor only runs after an SRE-role approval request.
 
 ## Decisions
 
 - Demo Mode is deterministic and works without model credentials or third-party calls.
+- The optional Prometheus connector is read-only and operator-configured; a live adapter for traces, logs, deployments, and SQL is still required for real multi-source RCA.
 - SQLite and one in-process worker keep the portfolio demo runnable with one container. Durable queue replay and multi-worker coordination are deferred until measured need exists.
 - A fixed state sequence is used instead of LangGraph because the demo has one bounded path; adding a graph framework would not make this fixture flow more capable.
 - BM25 + sparse TF-IDF provides reproducible hybrid lexical search. Semantic vectors and a reranker are deferred pending a larger labeled set.
@@ -18,7 +19,7 @@ The local Incident Lab injects one of four versioned simulated failures. A fixed
 
 ## Failure behavior
 
-Core-source failure, malformed evidence, a failed worker, or a service restart blocks an unsupported root cause and remediation. Optional-source failure remains visible as partial evidence and reduces the demo confidence score. Viewer approval is rejected; deny records an audit event and never calls the write executor. Concurrent approval requests are claimed transactionally, and interrupted writes are blocked for reconciliation. See the [security report](security-report.md) and [evaluation suite](../evals/README.md).
+Core-source failure, mixed live/fixture evidence, malformed evidence, a failed worker, or a service restart blocks an unsupported root cause and remediation. Optional-source failure remains visible as partial evidence and reduces the demo confidence score. Viewer approval is rejected; deny records an audit event and never calls the write executor. Concurrent approval requests are claimed transactionally, and interrupted writes are blocked for reconciliation. See the [security report](security-report.md) and [evaluation suite](../evals/README.md).
 
 ## Results
 
@@ -26,4 +27,4 @@ The current reproducible local measurements are in [`benchmarks/reports/latest.j
 
 ## What is not proven
 
-The role and tenant headers are demonstration controls, not authenticated identity. The fixtures are curated; the confidence value is a fixed completeness score, not a probability. There is no LLM, live production adapter, semantic retriever, database/message broker cluster, cloud deployment, load test, or saved screen recording. See the [architecture](architecture.md) and [threat model](threat-model.md) for upgrade boundaries.
+The role and tenant headers are demonstration controls, not authenticated identity. The fixtures are curated; the confidence value is a fixed completeness score, not a probability. There is no LLM, live multi-source adapter, semantic retriever, database/message broker cluster, cloud deployment, load test, or saved screen recording. See the [architecture](architecture.md) and [threat model](threat-model.md) for upgrade boundaries.

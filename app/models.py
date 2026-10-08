@@ -42,7 +42,7 @@ class Evidence(StrictModel):
     summary: str
     observed_value: str
     collected_at: datetime = Field(default_factory=now_utc)
-    provenance: Literal["SIMULATED"] = "SIMULATED"
+    provenance: Literal["SIMULATED", "PROMETHEUS"] = "SIMULATED"
     trust: Literal["observed", "untrusted"] = "observed"
 
 

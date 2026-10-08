@@ -49,8 +49,18 @@ TENANT = re.compile(r"^[a-zA-Z0-9_-]{1,40}$")
 ALLOWED_REMEDIATIONS = {"rollback", "failover", "circuit_breaker"}
 
 
-def create_app(store: Store | None = None) -> FastAPI:
+def create_app(store: Store | None = None, prometheus_metrics=None) -> FastAPI:
     db = store or Store(Path(os.getenv("SENTINELGRAPH_DB", "data/sentinelgraph.sqlite3")))
+    if prometheus_metrics is None:
+        prometheus_url = os.getenv("SENTINELGRAPH_PROMETHEUS_URL", "").strip()
+        prometheus_query = os.getenv("SENTINELGRAPH_PROMETHEUS_QUERY", "").strip()
+        prometheus_token = os.getenv("SENTINELGRAPH_PROMETHEUS_TOKEN", "").strip()
+        if prometheus_url or prometheus_query or prometheus_token:
+            if not prometheus_url or not prometheus_query:
+                raise RuntimeError("Set both SENTINELGRAPH_PROMETHEUS_URL and SENTINELGRAPH_PROMETHEUS_QUERY.")
+            from app.prometheus import PrometheusMetrics
+
+            prometheus_metrics = PrometheusMetrics(prometheus_url, prometheus_query, prometheus_token or None)
 
     @asynccontextmanager
     async def lifespan(_application: FastAPI):
@@ -63,6 +73,7 @@ def create_app(store: Store | None = None) -> FastAPI:
     application.state.store = db
     application.state.tasks = set()
     application.state.chaos = {}
+    application.state.prometheus_metrics = prometheus_metrics
 
     @application.middleware("http")
     async def observe_request(request: Request, call_next):
@@ -113,7 +124,6 @@ def create_app(store: Store | None = None) -> FastAPI:
                 event(incident, "tool", f"Read-only {source.value} adapter started.")
                 db.save(incident)
                 await asyncio.sleep(0.16)
-                call.completed_at = now_utc()
                 if source in failures:
                     call.status = "failed"
                     call.error = f"{source.value} source unavailable (chaos injection)."
@@ -131,16 +141,31 @@ def create_app(store: Store | None = None) -> FastAPI:
                     else:
                         raise ValueError("Chaos malformed-output control did not produce malformed output.")
                 else:
-                    evidence = Evidence(
-                        id=f"ev-{incident.id[:8]}-{source.value}",
-                        source=source,
-                        summary=f"{source.value.title()} observation for {scenario['service']}",
-                        observed_value=scenario["signals"][source.value],
-                    )
-                    incident.evidence.append(evidence)
-                    call.status = "succeeded"
-                    call.evidence_id = evidence.id
-                    event(incident, "evidence", f"{source.value} returned simulated evidence {evidence.id}.")
+                    try:
+                        if source == Source.metrics and application.state.prometheus_metrics:
+                            evidence = await application.state.prometheus_metrics.collect(incident.id)
+                        else:
+                            evidence = Evidence(
+                                id=f"ev-{incident.id[:8]}-{source.value}",
+                                source=source,
+                                summary=f"{source.value.title()} observation for {scenario['service']}",
+                                observed_value=scenario["signals"][source.value],
+                            )
+                    except RuntimeError as exc:
+                        call.status = "failed"
+                        call.error = str(exc)
+                        incident.failed_sources.append(source)
+                        event(incident, "failure", "Prometheus metrics query failed; no live evidence was recorded.")
+                    else:
+                        incident.evidence.append(evidence)
+                        call.status = "succeeded"
+                        call.evidence_id = evidence.id
+                        event(
+                            incident,
+                            "evidence",
+                            f"{source.value} returned {evidence.provenance.lower()} evidence {evidence.id}.",
+                        )
+                call.completed_at = now_utc()
                 db.save(incident)
                 if chaos.simulate_worker_crash and source == Source.metrics:
                     raise RuntimeError("Simulated investigation worker exit after the first persisted tool result.")
@@ -169,7 +194,7 @@ def create_app(store: Store | None = None) -> FastAPI:
             if supported:
                 event(incident, "analysis", f"Root cause supported by {len(incident.root_cause.citations)} required evidence sources; confidence {incident.root_cause.confidence:.0%}.")
             else:
-                event(incident, "failure", "A required evidence source failed; root cause and remediation are blocked.")
+                event(incident, "failure", "Evidence did not satisfy the scenario provenance and source policy; remediation is blocked.")
 
             truth = scenario["ground_truth"]
             if supported and incident.runbook:

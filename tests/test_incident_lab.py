@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import tempfile
@@ -5,13 +6,16 @@ import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest.mock import patch
 
+import httpx
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.evaluation import run_evaluations
 from app.main import create_app
-from app.models import Incident, IncidentStatus, Remediation, RunMetrics, ToolTrace, now_utc
+from app.models import Evidence, Incident, IncidentStatus, Remediation, RunMetrics, Source, ToolTrace, now_utc
+from app.prometheus import PrometheusMetrics
 from app.store import Store
 
 ROOT = Path(__file__).parents[1]
@@ -69,6 +73,96 @@ class IncidentLabTests(unittest.TestCase):
         sql_call = next(call for call in incident["tool_trace"] if call["tool"] == "sql")
         self.assertEqual(sql_call["status"], "failed")
         self.assertFalse(any(call["permission"] == "write" for call in incident["tool_trace"]))
+
+    def test_live_prometheus_evidence_is_labeled_and_blocks_fixture_root_cause(self):
+        class LiveMetrics:
+            async def collect(self, incident_id):
+                return Evidence(
+                    id=f"ev-{incident_id[:8]}-prometheus-metrics",
+                    source=Source.metrics,
+                    summary="1 time series from Prometheus.",
+                    observed_value='{"series":[{"labels":{"job":"checkout-api"},"value":"1"}]}',
+                    provenance="PROMETHEUS",
+                )
+
+        self.app.state.prometheus_metrics = LiveMetrics()
+        incident = self.inject_and_wait("database-saturation")
+        self.assertEqual(incident["status"], "blocked")
+        self.assertFalse(incident["root_cause"]["supported"])
+        self.assertIn("Mixed live and simulated evidence", incident["root_cause"]["summary"])
+        metrics = next(item for item in incident["evidence"] if item["source"] == "metrics")
+        self.assertEqual(metrics["provenance"], "PROMETHEUS")
+        self.assertIsNone(incident["remediation"])
+
+    def test_live_prometheus_vector_is_parsed_and_bearer_token_is_sent(self):
+        seen = {}
+
+        def handle(request):
+            seen["query"] = request.url.params["query"]
+            seen["limit"] = request.url.params["limit"]
+            seen["authorization"] = request.headers.get("authorization")
+            return httpx.Response(
+                200,
+                json={
+                    "status": "success",
+                    "data": {
+                        "resultType": "vector",
+                        "result": [{"metric": {"job": "checkout-api"}, "value": [1791438209, "1"]}],
+                    },
+                },
+                request=request,
+            )
+
+        async def collect():
+            adapter = PrometheusMetrics(
+                "https://prometheus.example", "up", "local-test-token", httpx.MockTransport(handle)
+            )
+            return await adapter.collect("1234567890")
+
+        evidence = asyncio.run(collect())
+        self.assertEqual(evidence.provenance, "PROMETHEUS")
+        self.assertEqual(evidence.source, Source.metrics)
+        self.assertIn("checkout-api", evidence.observed_value)
+        self.assertEqual(seen, {"query": "up", "limit": "10", "authorization": "Bearer local-test-token"})
+
+    def test_prometheus_non_vector_result_fails_closed(self):
+        def handle(request):
+            return httpx.Response(
+                200,
+                json={"status": "success", "data": {"resultType": "scalar", "result": [1, "1"]}},
+                request=request,
+            )
+
+        async def collect():
+            adapter = PrometheusMetrics("http://prometheus.example", "1", transport=httpx.MockTransport(handle))
+            return await adapter.collect("incident-1")
+
+        with self.assertRaisesRegex(RuntimeError, "instant vector"):
+            asyncio.run(collect())
+
+    def test_prometheus_response_size_is_bounded(self):
+        def handle(request):
+            return httpx.Response(200, content=b"x" * 65_537, request=request)
+
+        async def collect():
+            adapter = PrometheusMetrics("http://prometheus.example", "up", transport=httpx.MockTransport(handle))
+            return await adapter.collect("incident-1")
+
+        with self.assertRaisesRegex(RuntimeError, "64 KiB"):
+            asyncio.run(collect())
+
+    def test_prometheus_timeout_is_recorded_as_a_failed_source(self):
+        class UnavailableMetrics:
+            async def collect(self, incident_id):
+                raise RuntimeError("Prometheus query timed out.")
+
+        self.app.state.prometheus_metrics = UnavailableMetrics()
+        incident = self.inject_and_wait("database-saturation")
+        self.assertEqual(incident["status"], "blocked")
+        self.assertIn("metrics", incident["failed_sources"])
+        metrics_call = next(call for call in incident["tool_trace"] if call["tool"] == "metrics")
+        self.assertEqual(metrics_call["status"], "failed")
+        self.assertEqual(metrics_call["error"], "Prometheus query timed out.")
 
     def test_noncritical_failure_is_visible_and_confidence_is_reduced(self):
         self.client.put("/api/chaos", json={"fail_sources": ["logs"]})
@@ -204,6 +298,23 @@ class IncidentLabTests(unittest.TestCase):
 
 
 class DomainValidationTests(unittest.TestCase):
+    def test_prometheus_bearer_token_requires_tls_for_remote_hosts(self):
+        with self.assertRaisesRegex(ValueError, "require HTTPS"):
+            PrometheusMetrics("http://prometheus.example", "up", "secret")
+
+    def test_prometheus_configuration_is_loaded_from_operator_environment(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(
+            "os.environ",
+            {
+                "SENTINELGRAPH_PROMETHEUS_URL": "https://prometheus.example",
+                "SENTINELGRAPH_PROMETHEUS_QUERY": "up",
+                "SENTINELGRAPH_PROMETHEUS_TOKEN": "test-token",
+            },
+        ):
+            app = create_app(Store(Path(directory) / "configured.sqlite3"))
+            self.assertIsInstance(app.state.prometheus_metrics, PrometheusMetrics)
+            self.assertEqual(app.state.prometheus_metrics.query, "up")
+
     def test_app_creation_defers_database_initialization_until_startup(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "startup.sqlite3"

@@ -17,3 +17,4 @@ build/
 *.egg-info/
 Thumbs.db
 .DS_Store
+AI_DATA_DO_NOT_SHIP/

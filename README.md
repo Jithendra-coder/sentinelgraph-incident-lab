@@ -19,6 +19,19 @@ If Python 3.12 is not installed, use an available Python 3.11+ launcher (for exa
 
 Or run the optional container setup with `docker compose up --build`.
 
+### Optional Prometheus metrics
+
+The app can collect one operator-configured, read-only Prometheus instant query. Install the telemetry extra and set the endpoint and query before starting the app:
+
+```powershell
+python -m pip install -e ".[telemetry]"
+$env:SENTINELGRAPH_PROMETHEUS_URL = "http://localhost:9090"
+$env:SENTINELGRAPH_PROMETHEUS_QUERY = "up"
+python -m uvicorn app.main:app --reload
+```
+
+Set `SENTINELGRAPH_PROMETHEUS_TOKEN` in the environment when the endpoint requires a bearer token; bearer tokens require HTTPS except for loopback development. For Docker Desktop, a host Prometheus server is usually reachable at `http://host.docker.internal:9090` when no token is needed. The query is operator-supplied, never accepted from an incident request. Metrics evidence is labeled `PROMETHEUS`; traces, logs, deployment, and SQL evidence remain fixtures. Because the RCA is grounded in scenario fixtures, mixing live metrics with them blocks the scenario diagnosis and remediation. No live systems are written to.
+
 ## Verify
 
 ```powershell
@@ -48,4 +61,4 @@ Use the visible Chaos controls to fail an evidence adapter on the next run, or i
 - [Current phase, results, and remaining gaps](PROJECT_STATUS.md)
 - [Local deployment boundary](infrastructure/README.md)
 
-This is not connected to production systems and does not call an LLM. Root-cause labels and evidence are curated simulated data. The demo's role/tenant headers illustrate policy checks but are not authenticated identities; do not expose the local app publicly. See the threat model before adapting it.
+The default path does not call an LLM or connect to production systems. Root-cause labels and four of the five evidence sources are curated simulated data; an optional Prometheus metrics read is labeled separately and blocks fixture-based diagnosis when mixed in. The demo's role/tenant headers illustrate policy checks but are not authenticated identities; do not expose the local app publicly. See the threat model before adapting it.

@@ -6,7 +6,7 @@ The demo currently has one bounded sequence and no alternate model-driven branch
 
 ## How are invented evidence and dangerous tools prevented?
 
-The fixture investigator uses a typed evidence schema, rejects extra fields, requires scenario-specific core sources, and validates citation IDs against collected evidence. Read adapters accept no free-form commands. The separate writer supports three fixed simulated actions and checks the approval role. The demo does not claim real identity enforcement; authentication must precede any external deployment.
+The investigator uses a typed evidence schema, rejects extra fields, requires scenario-specific core sources, and validates citation IDs against collected evidence. The optional Prometheus read uses an operator-configured query; incident requests cannot change its URL or PromQL. A live metrics observation cannot be combined with fixture ground truth to claim a supported diagnosis. The separate writer supports three fixed simulated actions and checks the approval role. The demo does not claim real identity enforcement; authentication must precede any external deployment.
 
 ## What happens when a source is unavailable?
 

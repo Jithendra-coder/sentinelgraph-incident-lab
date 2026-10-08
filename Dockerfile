@@ -4,7 +4,7 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY app ./app
 COPY evals ./evals
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir ".[telemetry]"
 RUN mkdir -p /app/data && useradd --system --uid 10001 sentinel && chown -R sentinel:sentinel /app
 USER sentinel
 EXPOSE 8000

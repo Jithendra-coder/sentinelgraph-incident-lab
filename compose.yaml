@@ -6,6 +6,9 @@ services:
     environment:
       SENTINELGRAPH_DB: /app/data/sentinelgraph.sqlite3
       LOG_LEVEL: INFO
+      SENTINELGRAPH_PROMETHEUS_URL: ${SENTINELGRAPH_PROMETHEUS_URL:-}
+      SENTINELGRAPH_PROMETHEUS_QUERY: ${SENTINELGRAPH_PROMETHEUS_QUERY:-}
+      SENTINELGRAPH_PROMETHEUS_TOKEN: ${SENTINELGRAPH_PROMETHEUS_TOKEN:-}
     volumes:
       - sentinelgraph-data:/app/data
     restart: unless-stopped

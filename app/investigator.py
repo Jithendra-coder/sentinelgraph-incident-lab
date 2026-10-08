@@ -8,12 +8,17 @@ def derive_root_cause(scenario: dict, evidence: list[Evidence], failed: set[Sour
     core = set(truth["core_sources"])
     evidence_by_source = {item.source.value: item for item in evidence}
     core_evidence = [evidence_by_source[source] for source in truth["core_sources"] if source in evidence_by_source]
-    supported = core.issubset(evidence_by_source) and len(core_evidence) == len(core)
+    fixture_only = all(item.provenance == "SIMULATED" for item in evidence)
+    supported = core.issubset(evidence_by_source) and len(core_evidence) == len(core) and fixture_only
     quality = "complete" if not failed else "partial"
     if not supported:
         return RootCause(
             cause_id="unknown",
-            summary="Insufficient trusted evidence to identify a root cause safely.",
+            summary=(
+                "Mixed live and simulated evidence cannot support a scenario-specific root cause."
+                if not fixture_only
+                else "Insufficient trusted evidence to identify a root cause safely."
+            ),
             confidence=0,
             citations=[],
             supported=False,

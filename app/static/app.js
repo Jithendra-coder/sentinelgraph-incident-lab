@@ -259,7 +259,7 @@ $("#scenarios").addEventListener("click", async (event) => {
       body: JSON.stringify({ scenario_id: button.dataset.scenario }),
     });
     state.selectedId = incident.id;
-    toast("Incident injected. Collecting simulated evidence…");
+    toast("Incident injected. Collecting evidence…");
     await refreshSummary();
     await refreshDetail();
   } catch (error) {
